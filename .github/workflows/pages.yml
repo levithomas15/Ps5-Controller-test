@@ -1,0 +1,43 @@
+name: Deploy zu GitHub Pages
+
+# Veröffentlicht den Inhalt des Repositorys als statische Website.
+# "configure-pages" aktiviert Pages beim ersten Lauf selbst.
+
+on:
+  push:
+    branches:
+      - main
+      - claude/ps5-controller-macos-manager-7dh88n
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Protokolltests
+        run: node tests/protocol.test.mjs
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
