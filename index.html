@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DualSense Studio – PS5-Controller am MacBook</title>
+<meta name="description" content="PS5-DualSense-Controller im Browser verbinden: Lightbar-Farbe ändern, Stickdrift testen und adaptive Trigger ein- und ausschalten.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🎮</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">◯ ✕ △ ▢</span>
+    <div>
+      <h1>DualSense Studio</h1>
+      <p>PS5-Controller direkt im Browser steuern – ganz ohne Installation</p>
+    </div>
+  </div>
+  <div class="conn">
+    <div class="status" id="status">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">Nicht verbunden</span>
+    </div>
+    <button id="connectBtn" class="btn primary">Controller verbinden</button>
+    <button id="disconnectBtn" class="btn ghost" hidden>Trennen</button>
+  </div>
+</header>
+
+<div id="unsupported" class="banner error" hidden>
+  <strong>Dieser Browser kann keine Controller ansprechen.</strong>
+  WebHID gibt es nur in Chromium-Browsern – auf dem MacBook also <b>Chrome</b>, <b>Edge</b>, <b>Brave</b>, <b>Arc</b> oder <b>Opera</b>.
+  Safari und Firefox unterstützen die Schnittstelle nicht.
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<main>
+  <section class="card overview">
+    <div class="overview-grid">
+      <div class="info">
+        <span class="label">Gerät</span>
+        <span class="value" id="infoName">–</span>
+      </div>
+      <div class="info">
+        <span class="label">Verbindung</span>
+        <span class="value" id="infoConn">–</span>
+      </div>
+      <div class="info">
+        <span class="label">Akku</span>
+        <span class="value" id="infoBattery">–</span>
+      </div>
+      <div class="info">
+        <span class="label">Datenrate</span>
+        <span class="value" id="infoRate">–</span>
+      </div>
+    </div>
+    <div class="lightbar-preview" id="lightbarPreview"><span>Lightbar</span></div>
+  </section>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="light" role="tab">💡 Farbe &amp; LEDs</button>
+    <button class="tab" data-tab="triggers" role="tab">🎯 Adaptive Trigger</button>
+    <button class="tab" data-tab="drift" role="tab">🕹️ Stickdrift-Test</button>
+    <button class="tab" data-tab="test" role="tab">🔘 Tasten &amp; Rumble</button>
+    <button class="tab" data-tab="help" role="tab">❓ Hilfe</button>
+  </nav>
+
+  <!-- ------------------------------------------------------------ Lightbar -->
+  <section class="panel active" id="tab-light">
+    <div class="card">
+      <h2>Lightbar-Farbe</h2>
+      <p class="hint">Die Farbe wird sofort an den Controller geschickt – auch über Bluetooth.</p>
+      <div class="color-row">
+        <input type="color" id="colorPicker" value="#0040ff" aria-label="Farbe wählen">
+        <div class="sliders">
+          <label class="slider red"><span>Rot</span><input type="range" id="sliderR" min="0" max="255" value="0"><output id="outR">0</output></label>
+          <label class="slider green"><span>Grün</span><input type="range" id="sliderG" min="0" max="255" value="64"><output id="outG">64</output></label>
+          <label class="slider blue"><span>Blau</span><input type="range" id="sliderB" min="0" max="255" value="255"><output id="outB">255</output></label>
+          <label class="slider"><span>Helligkeit</span><input type="range" id="sliderBright" min="0" max="100" value="100"><output id="outBright">100 %</output></label>
+        </div>
+      </div>
+      <h3>Voreinstellungen</h3>
+      <div class="presets" id="colorPresets"></div>
+      <h3>Effekte</h3>
+      <div class="chips" id="effectChips">
+        <button class="chip active" data-effect="static">Statisch</button>
+        <button class="chip" data-effect="rainbow">Regenbogen</button>
+        <button class="chip" data-effect="breathe">Atmen</button>
+        <button class="chip" data-effect="pulse">Puls</button>
+        <button class="chip" data-effect="battery">Akkustand</button>
+        <button class="chip" data-effect="reactive">Reagiert auf Trigger</button>
+      </div>
+      <label class="speed-row" id="speedRow">
+        <span>Tempo</span>
+        <input type="range" id="effectSpeed" min="1" max="100" value="35">
+      </label>
+    </div>
+
+    <div class="card">
+      <h2>Player-LEDs &amp; Mikrofon</h2>
+      <p class="hint">Die fünf weißen LEDs unter dem Touchpad zeigen normalerweise die Spielernummer.</p>
+      <div class="chips" id="playerChips">
+        <button class="chip active" data-player="0">Aus</button>
+        <button class="chip" data-player="1">Spieler 1</button>
+        <button class="chip" data-player="2">Spieler 2</button>
+        <button class="chip" data-player="3">Spieler 3</button>
+        <button class="chip" data-player="4">Spieler 4</button>
+        <button class="chip" data-player="5">Alle</button>
+      </div>
+      <label class="speed-row">
+        <span>LED-Helligkeit</span>
+        <select id="playerBrightness">
+          <option value="0">Hell</option>
+          <option value="1">Mittel</option>
+          <option value="2">Gedimmt</option>
+        </select>
+      </label>
+      <div class="chips" id="micChips">
+        <button class="chip active" data-mic="0">Mikro-LED aus</button>
+        <button class="chip" data-mic="1">An</button>
+        <button class="chip" data-mic="2">Pulsierend</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------- Trigger -->
+  <section class="panel" id="tab-triggers">
+    <div class="card">
+      <h2>Adaptive Trigger</h2>
+      <p class="hint">
+        Jeder Trigger bekommt einen eigenen Effekt. <b>Aus</b> schaltet den Widerstand komplett ab –
+        der Abzug läuft dann frei wie bei einem normalen Controller.
+      </p>
+      <div class="preset-row" id="triggerPresets"></div>
+      <div class="trigger-grid">
+        <div class="trigger-col" data-side="left">
+          <h3>L2 <span class="tval" id="l2Value">0 %</span></h3>
+          <div class="trigger-bar"><div class="fill" id="l2Fill"></div></div>
+          <label class="field"><span>Effekt</span><select id="leftEffect"></select></label>
+          <div class="params" id="leftParams"></div>
+        </div>
+        <div class="trigger-col" data-side="right">
+          <h3>R2 <span class="tval" id="r2Value">0 %</span></h3>
+          <div class="trigger-bar"><div class="fill" id="r2Fill"></div></div>
+          <label class="field"><span>Effekt</span><select id="rightEffect"></select></label>
+          <div class="params" id="rightParams"></div>
+        </div>
+      </div>
+      <div class="row-actions">
+        <label class="check"><input type="checkbox" id="linkTriggers"> Beide Trigger gemeinsam einstellen</label>
+        <button class="btn ghost" id="triggersOff">Adaptive Trigger komplett aus</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- --------------------------------------------------------------- Drift -->
+  <section class="panel" id="tab-drift">
+    <div class="card">
+      <h2>Stickdrift-Test</h2>
+      <p class="hint">
+        Zwei Prüfungen: Im <b>Ruhetest</b> darfst du die Sticks nicht berühren – gemessen wird, wie weit sie
+        von der Mitte wegwandern. Im <b>Kreistest</b> führst du beide Sticks langsam am Rand entlang;
+        dabei zeigt sich, ob der Controller den vollen Bereich erreicht.
+      </p>
+      <div class="stick-grid">
+        <figure><canvas id="stickLeft" width="260" height="260"></canvas><figcaption>Linker Stick</figcaption></figure>
+        <figure><canvas id="stickRight" width="260" height="260"></canvas><figcaption>Rechter Stick</figcaption></figure>
+      </div>
+      <div class="row-actions">
+        <button class="btn primary" id="startRest">Ruhetest starten (5 s)</button>
+        <button class="btn" id="startCircle">Kreistest starten (15 s)</button>
+        <button class="btn ghost" id="resetTest">Zurücksetzen</button>
+      </div>
+      <div class="test-status" id="testStatus">Bereit. Controller verbinden und Test wählen.</div>
+      <div class="results" id="driftResults"></div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------- Tasten/Rumble -->
+  <section class="panel" id="tab-test">
+    <div class="card">
+      <h2>Tastentest</h2>
+      <p class="hint">Drücke der Reihe nach alle Tasten – was leuchtet, funktioniert. Grün markiert bedeutet: schon mindestens einmal erkannt.</p>
+      <div class="button-map" id="buttonMap"></div>
+      <button class="btn ghost" id="resetButtons">Markierungen zurücksetzen</button>
+    </div>
+    <div class="card">
+      <h2>Touchpad</h2>
+      <canvas id="touchpad" width="480" height="220"></canvas>
+    </div>
+    <div class="card">
+      <h2>Vibration</h2>
+      <div class="sliders">
+        <label class="slider"><span>Links (schwer)</span><input type="range" id="rumbleL" min="0" max="255" value="0"><output id="outRumbleL">0</output></label>
+        <label class="slider"><span>Rechts (leicht)</span><input type="range" id="rumbleR" min="0" max="255" value="0"><output id="outRumbleR">0</output></label>
+      </div>
+      <div class="row-actions">
+        <button class="btn" id="rumbleTest">Kurzer Test</button>
+        <button class="btn ghost" id="rumbleStop">Stopp</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------------- Hilfe -->
+  <section class="panel" id="tab-help">
+    <div class="card">
+      <h2>So verbindest du den Controller mit dem MacBook</h2>
+      <h3>Per USB-C-Kabel (am einfachsten)</h3>
+      <ol>
+        <li>Controller mit einem <b>Datenkabel</b> (kein reines Ladekabel) an das MacBook stecken.</li>
+        <li>Oben auf „Controller verbinden“ klicken.</li>
+        <li>Im Browser-Dialog „Wireless Controller“ auswählen und bestätigen.</li>
+      </ol>
+      <h3>Per Bluetooth</h3>
+      <ol>
+        <li>Controller ausschalten. <b>Create</b> (links neben dem Touchpad) und die <b>PS-Taste</b> gemeinsam ca. 5 Sekunden gedrückt halten, bis die Lightbar schnell blau blinkt.</li>
+        <li>Auf dem Mac: Systemeinstellungen → Bluetooth → „DualSense Wireless Controller“ verbinden.</li>
+        <li>Zurück im Browser auf „Controller verbinden“ klicken und das Gerät auswählen.</li>
+      </ol>
+      <h2>Häufige Fragen</h2>
+      <details>
+        <summary>Warum funktioniert Safari nicht?</summary>
+        <p>Die Seite spricht den Controller über <b>WebHID</b> an. Diese Schnittstelle gibt es nur in Chromium-Browsern (Chrome, Edge, Brave, Arc, Opera). Safari und Firefox haben sie bewusst nicht eingebaut.</p>
+      </details>
+      <details>
+        <summary>Kann ich damit die Farbe ändern, während ich auf der PS5 spiele?</summary>
+        <p>
+          Nein – und das ist keine Einschränkung dieser Seite, sondern der Hardware: Der DualSense kann immer nur
+          <b>mit einem Gerät gleichzeitig</b> verbunden sein. Sobald er an der PS5 hängt, nimmt er keine Befehle vom Mac an.
+          Die Konsole setzt Lightbar und Trigger außerdem bei jedem Spielstart selbst.
+          Was du hier einstellst, gilt also für den Controller <b>am Mac</b> – zum Beispiel beim Spielen von Mac-Spielen,
+          bei Remote Play oder einfach zum Ausprobieren. Startest du danach die PS5, übernimmt wieder die Konsole.
+        </p>
+      </details>
+      <details>
+        <summary>Bleiben meine Einstellungen erhalten?</summary>
+        <p>Farbe, Effekt und Trigger-Einstellungen werden lokal im Browser gespeichert und beim nächsten Verbinden wieder angewendet. Der Controller selbst hat keinen Speicher dafür – schaltest du ihn aus, ist er wieder im Werkszustand.</p>
+      </details>
+      <details>
+        <summary>Mein Stick driftet – was jetzt?</summary>
+        <p>
+          Der Ruhetest zeigt die Abweichung in Prozent. Bis etwa 2 % ist alles normal (Toleranz der Hardware und der
+          Software-Totzone). Ab ca. 5 % merkst du es im Spiel deutlich; dann helfen meist nur Reinigen des Stickrings,
+          ein Austausch des Analogmoduls oder – falls noch Garantie besteht – Sonys Reparaturservice.
+        </p>
+      </details>
+      <details>
+        <summary>Werden Daten übertragen?</summary>
+        <p>Nein. Die Seite läuft komplett im Browser, es gibt kein Backend. Nichts verlässt dein MacBook.</p>
+      </details>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p>Kein offizielles Sony-Produkt. „PlayStation“, „PS5“ und „DualSense“ sind Marken der Sony Interactive Entertainment Inc.</p>
+</footer>
+
+<script type="module" src="src/app.js"></script>
+</body>
+</html>
