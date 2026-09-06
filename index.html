@@ -23,6 +23,7 @@
       <span id="statusText">Nicht verbunden</span>
     </div>
     <button id="connectBtn" class="btn primary">Controller verbinden</button>
+    <button id="pickBtn" class="btn ghost" title="Öffnet direkt die Geräteauswahl">Gerät wählen …</button>
     <button id="disconnectBtn" class="btn ghost" hidden>Trennen</button>
   </div>
 </header>
@@ -31,6 +32,12 @@
   <strong>Dieser Browser kann keine Controller ansprechen.</strong>
   WebHID gibt es nur in Chromium-Browsern – auf dem MacBook also <b>Chrome</b>, <b>Edge</b>, <b>Brave</b>, <b>Arc</b> oder <b>Opera</b>.
   Safari und Firefox unterstützen die Schnittstelle nicht.
+</div>
+
+<div id="noData" class="banner warn" hidden>
+  <strong>Verbunden, aber es kommen keine Daten vom Controller.</strong>
+  Drücke einmal kurz die <b>PS-Taste</b> – über USB wacht der Controller manchmal erst dadurch auf.
+  (Falls die PS5 in der Nähe eingeschaltet ist, vorher ausschalten, sonst springt er zu ihr.)
 </div>
 
 <div id="toast" class="toast" hidden></div>
@@ -209,6 +216,7 @@
       <h3>Per USB-C-Kabel (am einfachsten)</h3>
       <ol>
         <li>Controller mit einem <b>Datenkabel</b> (kein reines Ladekabel) an das MacBook stecken.</li>
+        <li>Bleibt die Lightbar dunkel und kommen keine Daten: einmal kurz die <b>PS-Taste</b> drücken. Über USB wacht der Controller oft erst dadurch auf. Wichtig ist nur, dass die <b>PS5 dabei ausgeschaltet</b> ist – sonst schnappt sie ihn sich per Bluetooth.</li>
         <li>Oben auf „Controller verbinden“ klicken.</li>
         <li>Im Browser-Dialog „Wireless Controller“ auswählen und bestätigen.</li>
       </ol>
@@ -223,11 +231,19 @@
       <ol>
         <li><b>Kabel prüfen.</b> Häufigste Ursache: ein reines Ladekabel ohne Datenleitungen. Am besten das Kabel nehmen, das bei der PS5 dabei war. Testen kannst du es so: Apfel-Menü → „Über diesen Mac" → „Weitere Informationen" → „Systembericht" → „USB". Steht dort kein „Wireless Controller", überträgt das Kabel keine Daten – dann hilft nur ein anderes.</li>
         <li><b>Richtiger Browser?</b> Chrome, Edge, Brave, Arc oder Opera. In Safari und Firefox erscheint oben auf dieser Seite ein roter Hinweis.</li>
-        <li><b>Controller ganz ausschalten</b> (PS-Taste 10 Sekunden halten, bis die Lightbar aus ist), <b>dann erst</b> das Kabel einstecken – und die PS-Taste danach nicht drücken.</li>
+        <li><b>Controller ganz ausschalten</b> (PS-Taste 10 Sekunden halten, bis die Lightbar aus ist), <b>dann erst</b> das Kabel einstecken. Tut sich nichts, einmal kurz die PS-Taste drücken – bei ausgeschalteter PS5 ist das gefahrlos.</li>
         <li><b>Holt sich die PS5 den Controller zurück?</b> Steht sie im Ruhemodus in der Nähe, verbindet er sich gern per Bluetooth zu ihr. Konsole komplett ausschalten und es erneut versuchen.</li>
         <li><b>Andere Programme schließen</b>, die den Controller belegen könnten – Steam, DS4Windows-Alternativen, Controller-Tools.</li>
         <li>Hilft alles nichts: In Chrome <code>chrome://device-log</code> öffnen und das Kabel einstecken. Dort steht, ob macOS das Gerät überhaupt sieht.</li>
       </ol>
+
+      <h2>Diagnose</h2>
+      <p class="hint">Zeigt, was der Browser über angeschlossene Geräte weiß. Hilfreich, wenn nichts erkannt wird.</p>
+      <div class="row-actions" style="margin-top:0">
+        <button class="btn" id="diagBtn">Diagnose ausführen</button>
+        <button class="btn ghost" id="diagCopy" hidden>Ergebnis kopieren</button>
+      </div>
+      <pre id="diagOut" hidden></pre>
 
       <h2>Häufige Fragen</h2>
       <details>

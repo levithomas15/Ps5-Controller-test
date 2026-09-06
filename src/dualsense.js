@@ -150,6 +150,9 @@ export class DualSense extends EventTarget {
       touch: [null, null],
       battery: { level: null, charging: false, full: false },
       reportRate: 0,
+      reportsSeen: 0,
+      vendorId: 0,
+      productId: 0,
     };
 
     this._reportTimes = [];
@@ -192,6 +195,32 @@ export class DualSense extends EventTarget {
     return { kind: 'unknown-sony' };
   }
 
+  /** Sammelt alles, was für die Fehlersuche einer Verbindung nützlich ist. */
+  static async diagnose() {
+    const lines = [];
+    const hex = (v) => `0x${v.toString(16).padStart(4, '0')}`;
+    lines.push(`WebHID verfügbar: ${DualSense.supported ? 'ja' : 'NEIN'}`);
+    lines.push(`Sicherer Kontext (https/localhost): ${globalThis.isSecureContext ? 'ja' : 'NEIN'}`);
+    lines.push(`Adresse: ${location.origin}`);
+    lines.push(`Browser: ${navigator.userAgent}`);
+    if (!DualSense.supported) return lines.join('\n');
+
+    const devices = await navigator.hid.getDevices();
+    lines.push(`Bereits freigegebene HID-Geräte: ${devices.length}`);
+    for (const d of devices) {
+      const usages = (d.collections ?? [])
+        .map((c) => `${hex(c.usagePage)}:${hex(c.usage)}`)
+        .join(', ');
+      const out = (d.collections ?? []).flatMap((c) => c.outputReports ?? []).map((r) => hex(r.reportId));
+      lines.push(`  - ${d.productName || '(ohne Namen)'} | Hersteller ${hex(d.vendorId)} | Produkt ${hex(d.productId)}`);
+      lines.push(`    geöffnet: ${d.opened ? 'ja' : 'nein'} | Collections: ${usages || 'keine'} | Ausgabereports: ${out.join(', ') || 'keine'}`);
+    }
+    if (!devices.length) {
+      lines.push('  (noch nichts freigegeben – im Auswahldialog muss der Controller erst bestätigt werden)');
+    }
+    return lines.join('\n');
+  }
+
   async open(device) {
     if (!device) throw new Error('Kein Gerät ausgewählt.');
     if (this.device) await this.close();
@@ -200,6 +229,9 @@ export class DualSense extends EventTarget {
     this.device = device;
     this.device.addEventListener('inputreport', this._onInputReport);
     this.state.name = device.productName || 'DualSense';
+    this.state.vendorId = device.vendorId;
+    this.state.productId = device.productId;
+    this.state.reportsSeen = 0;
 
     // Die Verbindungsart erkennt man am Ausgabereport, den das Gerät anbietet.
     const reportIds = new Set();
@@ -347,6 +379,7 @@ export class DualSense extends EventTarget {
   }
 
   _trackRate() {
+    this.state.reportsSeen++;
     const now = performance.now();
     this._reportTimes.push(now);
     while (this._reportTimes.length && now - this._reportTimes[0] > 1000) this._reportTimes.shift();

@@ -240,3 +240,14 @@ footer {
   .slider { grid-template-columns: 88px 1fr 44px; }
   .lightbar-preview { flex: 1 1 100%; }
 }
+
+/* --------------------------------------------------------------- Diagnose */
+
+.banner.warn { background: rgba(251, 191, 36, .12); border: 1px solid rgba(251, 191, 36, .4); }
+
+#diagOut {
+  margin-top: .9rem; padding: .9rem 1rem; border-radius: 11px;
+  background: rgba(0, 0, 0, .35); border: 1px solid var(--line);
+  font: 12px/1.6 ui-monospace, Menlo, monospace; color: var(--muted);
+  white-space: pre-wrap; word-break: break-word; overflow-x: auto;
+}

@@ -55,20 +55,29 @@ if (!DualSense.supported) {
   $('connectBtn').disabled = true;
 }
 
-$('connectBtn').addEventListener('click', async () => {
+let noDataTimer = null;
+
+/**
+ * Verbindet den Controller. Ohne Argument wird zuerst ein bereits
+ * freigegebenes Gerät probiert, sonst geht es direkt zur Auswahl.
+ */
+async function connect({ forcePicker = false } = {}) {
+  $('noData').hidden = true;
   try {
-    // Zuerst ein bereits freigegebenes Gerät versuchen – klappt das nicht
-    // (etwa weil die alte Bluetooth-Kopplung weg ist), kommt der Dialog.
-    for (const known of await DualSense.getKnownDevices()) {
-      try {
-        await ds.open(known);
-        return;
-      } catch { /* nächsten Kandidaten probieren */ }
+    if (!forcePicker) {
+      // Klappt das nicht (etwa weil die alte Bluetooth-Kopplung weg ist),
+      // fällt der Ablauf auf den Auswahldialog zurück.
+      for (const known of await DualSense.getKnownDevices()) {
+        try {
+          await ds.open(known);
+          return;
+        } catch { /* nächsten Kandidaten probieren */ }
+      }
     }
 
     const device = await DualSense.requestDevice();
     if (!device) {
-      toast('Kein Gerät ausgewählt. War die Liste leer? Dann siehe Hilfe → „Der Controller taucht nicht auf".', 'error');
+      toast('Kein Gerät ausgewählt. War die Liste leer? Siehe Hilfe → „Der Controller taucht nicht auf".', 'error');
       return;
     }
 
@@ -85,7 +94,10 @@ $('connectBtn').addEventListener('click', async () => {
   } catch (err) {
     toast(`Verbindung fehlgeschlagen: ${err.message}`, 'error');
   }
-});
+}
+
+$('connectBtn').addEventListener('click', () => connect());
+$('pickBtn').addEventListener('click', () => connect({ forcePicker: true }));
 
 $('disconnectBtn').addEventListener('click', () => ds.close());
 
@@ -94,13 +106,23 @@ ds.addEventListener('connect', () => {
   $('statusText').textContent = ds.connection === 'usb' ? 'Verbunden über USB' : 'Verbunden über Bluetooth';
   $('connectBtn').hidden = true;
   $('disconnectBtn').hidden = false;
+  const hex = (v) => `0x${v.toString(16).padStart(4, '0')}`;
   $('infoName').textContent = ds.state.name;
+  $('infoName').title = `Hersteller ${hex(ds.state.vendorId)}, Produkt ${hex(ds.state.productId)}`;
   $('infoConn').textContent = ds.connection === 'usb' ? 'USB-C' : 'Bluetooth';
   applyAllSettings();
   toast('Controller verbunden.', 'ok');
+
+  // Ein geöffnetes Gerät heißt noch nicht, dass es auch sendet.
+  clearTimeout(noDataTimer);
+  noDataTimer = setTimeout(() => {
+    $('noData').hidden = ds.state.reportsSeen > 0;
+  }, 3000);
 });
 
 ds.addEventListener('disconnect', () => {
+  clearTimeout(noDataTimer);
+  $('noData').hidden = true;
   $('statusDot').classList.remove('on');
   $('statusText').textContent = 'Nicht verbunden';
   $('connectBtn').hidden = false;
@@ -110,6 +132,10 @@ ds.addEventListener('disconnect', () => {
   $('infoBattery').textContent = '–';
   $('infoRate').textContent = '–';
 });
+
+ds.addEventListener('input', () => {
+  if (!$('noData').hidden) $('noData').hidden = true;
+}, { once: false });
 
 ds.addEventListener('error', (e) => toast(`Fehler beim Senden: ${e.detail?.message ?? e.detail}`, 'error'));
 
@@ -764,3 +790,22 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 window.addEventListener('beforeunload', () => { if (ds.state.connected) ds.setRumble(0, 0); });
+
+// ---------------------------------------------------------------- Diagnose
+
+$('diagBtn').addEventListener('click', async () => {
+  const text = await DualSense.diagnose();
+  const out = $('diagOut');
+  out.textContent = text;
+  out.hidden = false;
+  $('diagCopy').hidden = false;
+});
+
+$('diagCopy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('diagOut').textContent);
+    toast('Diagnose kopiert.', 'ok');
+  } catch {
+    toast('Kopieren nicht möglich – Text bitte von Hand markieren.', 'error');
+  }
+});
