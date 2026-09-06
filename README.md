@@ -16,9 +16,23 @@ ansprechen lässt – ohne Installation, ohne Server, ohne Datenübertragung.
   - *Kreistest* – wird der volle Bewegungsbereich rund erreicht?
 - **Tastentest**, Touchpad-Anzeige, Akkustand und Vibrationstest
 
-## Benutzung
+## Online-Version
 
-Die Seite ist statisch. Entweder direkt auf GitHub Pages veröffentlichen oder lokal starten:
+Die Seite läuft über GitHub Pages:
+
+**https://levithomas15.github.io/Ps5-Controller-test/**
+
+Damit das funktioniert, muss Pages im Repository einmalig eingeschaltet werden:
+**Settings → Pages → Build and deployment → Source: „GitHub Actions"**.
+Danach veröffentlicht der Workflow `.github/workflows/pages.yml` jede Änderung automatisch.
+
+Eigene Domain gewünscht? Domain beim Anbieter auf `levithomas15.github.io` zeigen lassen
+(CNAME-Eintrag) und sie unter Settings → Pages → Custom domain eintragen – GitHub legt dann
+selbst eine `CNAME`-Datei im Repository an und stellt ein HTTPS-Zertifikat aus.
+
+## Lokal starten
+
+Die Seite ist statisch, es reicht ein einfacher Webserver:
 
 ```bash
 python3 -m http.server 8000

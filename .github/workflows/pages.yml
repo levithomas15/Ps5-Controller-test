@@ -1,7 +1,9 @@
 name: Deploy zu GitHub Pages
 
 # Veröffentlicht den Inhalt des Repositorys als statische Website.
-# "configure-pages" aktiviert Pages beim ersten Lauf selbst.
+# Voraussetzung: unter Settings -> Pages muss als Source einmalig
+# "GitHub Actions" ausgewählt sein. Das Anlegen der Pages-Seite selbst
+# erlaubt GitHub dem Workflow-Token nicht.
 
 on:
   push:
@@ -32,8 +34,6 @@ jobs:
         run: node tests/protocol.test.mjs
 
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
