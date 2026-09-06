@@ -793,8 +793,23 @@ window.addEventListener('beforeunload', () => { if (ds.state.connected) ds.setRu
 
 // ---------------------------------------------------------------- Diagnose
 
+function liveStatus() {
+  const s = ds.state;
+  if (!s.connected) return 'Aktuelle Verbindung: keine';
+  const hex = (v) => `0x${v.toString(16).padStart(4, '0')}`;
+  return [
+    'Aktuelle Verbindung:',
+    `  Gerät: ${s.name} (${hex(s.vendorId)}/${hex(s.productId)})`,
+    `  Transportweg: ${s.connection}`,
+    `  Empfangene Reports: ${s.reportsSeen} (${s.reportRate} pro Sekunde)`,
+    `  Letzter Report: ${s.lastReport ? `ID ${hex(s.lastReport.id)}, ${s.lastReport.length} Byte` : 'noch keiner'}`,
+    `  Sticks roh: L ${s.sticks.rawLx}/${s.sticks.rawLy}  R ${s.sticks.rawRx}/${s.sticks.rawRy}`,
+    `  Letzter Sendefehler: ${s.lastError || 'keiner'}`,
+  ].join('\n');
+}
+
 $('diagBtn').addEventListener('click', async () => {
-  const text = await DualSense.diagnose();
+  const text = `${await DualSense.diagnose()}\n\n${liveStatus()}`;
   const out = $('diagOut');
   out.textContent = text;
   out.hidden = false;
@@ -808,4 +823,17 @@ $('diagCopy').addEventListener('click', async () => {
   } catch {
     toast('Kopieren nicht möglich – Text bitte von Hand markieren.', 'error');
   }
+});
+
+// Schneller Sichttest: drei kräftige Farben nacheinander.
+$('colorTest').addEventListener('click', async () => {
+  if (!ds.state.connected) { toast('Bitte zuerst den Controller verbinden.', 'error'); return; }
+  settings.effect = 'static';
+  syncEffectChips();
+  const steps = [[255, 0, 0], [0, 255, 0], [0, 0, 255]];
+  for (const [r, g, b] of steps) {
+    setColor(r, g, b);
+    await new Promise((done) => setTimeout(done, 700));
+  }
+  toast('Farbtest fertig. Hat die Lightbar rot, grün und blau gezeigt?', 'ok');
 });

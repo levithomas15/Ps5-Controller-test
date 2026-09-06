@@ -34,8 +34,6 @@ const FLAG1_MIC_LED = 0x01;
 const FLAG1_LIGHTBAR = 0x04;
 const FLAG1_RELEASE_LEDS = 0x08;
 const FLAG1_PLAYER_LEDS = 0x10;
-// valid_flag2
-const FLAG2_LIGHTBAR_SETUP = 0x01;
 
 /** Player-Muster wie auf der PS5 (Balkenanordnung der fünf LEDs). */
 export const PLAYER_PATTERNS = [0x00, 0x04, 0x0a, 0x15, 0x1b, 0x1f];
@@ -151,6 +149,8 @@ export class DualSense extends EventTarget {
       battery: { level: null, charging: false, full: false },
       reportRate: 0,
       reportsSeen: 0,
+      lastReport: null,
+      lastError: '',
       vendorId: 0,
       productId: 0,
     };
@@ -296,15 +296,20 @@ export class DualSense extends EventTarget {
 
   _onInputReport(event) {
     const { data, reportId } = event;
+    this.state.lastReport = { id: reportId, length: data.byteLength };
+
     let offset;
     if (reportId === IN_USB && data.byteLength >= 40) offset = 0;
     else if (reportId === IN_BT && data.byteLength >= 40) offset = 1;
     else if (reportId === IN_USB && data.byteLength < 40) {
       // Bluetooth-Minimalreport: nur Sticks und Tasten.
+      this._syncTransport('bluetooth');
       this._parseMinimal(data);
       this.emit('input');
       return;
     } else return;
+
+    this._syncTransport(offset === 0 ? 'usb' : 'bluetooth');
 
     const b = (i) => data.getUint8(offset + i);
     const s = this.state;
@@ -337,6 +342,22 @@ export class DualSense extends EventTarget {
 
     this._trackRate();
     this.emit('input');
+  }
+
+  /**
+   * Die Verbindungsart wird beim Öffnen anhand der angebotenen Ausgabereports
+   * geraten. Was tatsächlich hereinkommt, ist die verlässlichere Auskunft:
+   * Report 0x31 heißt Bluetooth, ein voller 0x01 heißt USB. Liegt die
+   * Vermutung daneben, gingen alle Ausgaben ins Leere – Farbe und Trigger
+   * blieben ohne Wirkung.
+   */
+  _syncTransport(kind) {
+    if (this.connection === kind) return;
+    this.connection = kind;
+    this.state.connection = kind;
+    this.emit('transport', kind);
+    this.firstOutputSent = false;
+    this.flush(true);
   }
 
   _parseMinimal(data) {
@@ -426,7 +447,6 @@ export class DualSense extends EventTarget {
 
     let flag0 = FLAG0_COMPATIBLE_VIBRATION | FLAG0_HAPTICS_SELECT | FLAG0_LEFT_TRIGGER | FLAG0_RIGHT_TRIGGER;
     let flag1 = FLAG1_LIGHTBAR | FLAG1_PLAYER_LEDS | FLAG1_MIC_LED;
-    let flag2 = 0;
 
     d[2] = o.rumble.right;
     d[3] = o.rumble.left;
@@ -437,9 +457,10 @@ export class DualSense extends EventTarget {
 
     if (!this.firstOutputSent) {
       // Einmalig die werkseitige Einschalt-Animation der Lightbar beenden.
+      // Wichtig: Byte 41 (lightbar_setup) bleibt dabei unangetastet – der Wert
+      // 0x02 bedeutet dort "Lightbar aus" und würde die Farbe dauerhaft
+      // unterdrücken, egal welches RGB danach folgt.
       flag1 |= FLAG1_RELEASE_LEDS;
-      flag2 |= FLAG2_LIGHTBAR_SETUP;
-      d[41] = 0x02;
     }
 
     d[42] = o.playerBrightness;
@@ -452,7 +473,6 @@ export class DualSense extends EventTarget {
 
     d[0] = flag0;
     d[1] = flag1;
-    d[38] = flag2;
     return d;
   }
 
@@ -497,6 +517,7 @@ export class DualSense extends EventTarget {
       }
       this.firstOutputSent = true;
     } catch (err) {
+      this.state.lastError = err.message;
       this.emit('error', err);
     }
   }

@@ -37,6 +37,17 @@ await ds.flush(true);
 ({ data } = sent.pop());
 assert(data[44] === 5 && data[46] === 15, 'Helligkeit skaliert RGB');
 
+// Byte 41 (lightbar_setup) muss 0 bleiben: 0x02 bedeutet "Lightbar aus".
+ds.output.brightness = 1;
+ds.firstOutputSent = false;
+await ds.flush(true);
+({ data } = sent.pop());
+assert(data[41] === 0, 'lightbar_setup bleibt 0 (schaltet die Lightbar nicht ab)');
+assert((data[1] & 0x08) === 0x08, 'RELEASE_LEDS nur im ersten Paket');
+await ds.flush(true);
+({ data } = sent.pop());
+assert((data[1] & 0x08) === 0, 'RELEASE_LEDS danach nicht mehr gesetzt');
+
 // --- Bluetooth-Ausgabe
 ds.connection = 'bluetooth';
 ds.seq = 0;
@@ -74,3 +85,16 @@ const bt = new Uint8Array(78);
 bt[1 + 0] = 200; bt[1 + 1] = 100; bt[1 + 7] = 0x80; // Dreieck
 ds._onInputReport({ reportId: 0x31, data: new DataView(bt.buffer) });
 assert(ds.state.sticks.rawLx === 200 && ds.state.buttons.triangle, 'BT-Report mit Versatz 1 gelesen');
+
+// --- Verbindungsart korrigiert sich anhand der eintreffenden Reports
+ds.connection = 'usb';
+sent.length = 0;
+const btIn = new Uint8Array(78);
+ds._onInputReport({ reportId: 0x31, data: new DataView(btIn.buffer) });
+assert(ds.connection === 'bluetooth', 'Report 0x31 stellt auf Bluetooth um');
+assert(sent.length === 1 && sent[0].id === 0x31, 'nach dem Wechsel wird sofort im richtigen Format gesendet');
+
+const usbIn = new Uint8Array(64);
+ds._onInputReport({ reportId: 0x01, data: new DataView(usbIn.buffer) });
+assert(ds.connection === 'usb', 'voller Report 0x01 stellt auf USB um');
+assert(ds.state.lastReport.id === 0x01 && ds.state.lastReport.length === 64, 'letzter Report wird für die Diagnose gemerkt');
