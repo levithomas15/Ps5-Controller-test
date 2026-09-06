@@ -12,6 +12,13 @@ import { crc32 } from './crc32.js';
 export const SONY_VENDOR_ID = 0x054c;
 export const DUALSENSE_PRODUCT_IDS = [0x0ce6, 0x0df2]; // DualSense, DualSense Edge
 
+/** Sony-Controller, die zwar erkannt werden, aber ein anderes Protokoll sprechen. */
+export const OTHER_SONY_CONTROLLERS = {
+  0x05c4: 'DualShock 4 (1. Generation)',
+  0x09cc: 'DualShock 4 (2. Generation)',
+  0x0ba0: 'DualShock 4 USB-Adapter',
+};
+
 const OUT_USB = 0x02;
 const OUT_BT = 0x31;
 const IN_USB = 0x01;
@@ -159,15 +166,30 @@ export class DualSense extends EventTarget {
   static async getKnownDevices() {
     if (!DualSense.supported) return [];
     const devices = await navigator.hid.getDevices();
-    return devices.filter((d) => d.vendorId === SONY_VENDOR_ID && DUALSENSE_PRODUCT_IDS.includes(d.productId));
+    return devices.filter((d) => d.vendorId === SONY_VENDOR_ID);
   }
 
-  /** Öffnet den Browser-Dialog zur Geräteauswahl. */
+  /**
+   * Öffnet den Browser-Dialog zur Geräteauswahl. Gefiltert wird nur nach Sony
+   * als Hersteller: Wäre die Produktnummer fest vorgegeben, bliebe der Dialog
+   * bei jeder Controller-Revision leer, die wir noch nicht kennen.
+   */
   static async requestDevice() {
     const devices = await navigator.hid.requestDevice({
-      filters: DUALSENSE_PRODUCT_IDS.map((productId) => ({ vendorId: SONY_VENDOR_ID, productId })),
+      filters: [{ vendorId: SONY_VENDOR_ID }],
     });
     return devices[0] ?? null;
+  }
+
+  /** Grobe Einordnung eines ausgewählten Geräts für verständliche Meldungen. */
+  static identify(device) {
+    if (!device) return { kind: 'none' };
+    if (device.vendorId !== SONY_VENDOR_ID) return { kind: 'foreign' };
+    if (DUALSENSE_PRODUCT_IDS.includes(device.productId)) return { kind: 'dualsense' };
+    if (OTHER_SONY_CONTROLLERS[device.productId]) {
+      return { kind: 'other-sony', name: OTHER_SONY_CONTROLLERS[device.productId] };
+    }
+    return { kind: 'unknown-sony' };
   }
 
   async open(device) {

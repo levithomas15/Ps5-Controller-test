@@ -57,9 +57,30 @@ if (!DualSense.supported) {
 
 $('connectBtn').addEventListener('click', async () => {
   try {
-    let device = (await DualSense.getKnownDevices())[0];
-    if (!device) device = await DualSense.requestDevice();
-    if (!device) return;
+    // Zuerst ein bereits freigegebenes Gerät versuchen – klappt das nicht
+    // (etwa weil die alte Bluetooth-Kopplung weg ist), kommt der Dialog.
+    for (const known of await DualSense.getKnownDevices()) {
+      try {
+        await ds.open(known);
+        return;
+      } catch { /* nächsten Kandidaten probieren */ }
+    }
+
+    const device = await DualSense.requestDevice();
+    if (!device) {
+      toast('Kein Gerät ausgewählt. War die Liste leer? Dann siehe Hilfe → „Der Controller taucht nicht auf".', 'error');
+      return;
+    }
+
+    const id = DualSense.identify(device);
+    if (id.kind === 'other-sony') {
+      toast(`Das ist ein ${id.name}. Diese Seite ist für den DualSense der PS5 gemacht.`, 'error');
+      return;
+    }
+    if (id.kind === 'unknown-sony') {
+      toast('Unbekanntes Sony-Gerät – wird versuchsweise geöffnet.', 'info');
+    }
+
     await ds.open(device);
   } catch (err) {
     toast(`Verbindung fehlgeschlagen: ${err.message}`, 'error');
