@@ -131,6 +131,7 @@ ds.addEventListener('disconnect', () => {
   $('infoConn').textContent = '–';
   $('infoBattery').textContent = '–';
   $('infoRate').textContent = '–';
+  $('infoOut').textContent = '–';
 });
 
 ds.addEventListener('input', () => {
@@ -772,6 +773,10 @@ function frame(now) {
     $('infoBattery').textContent = b.level === null ? 'unbekannt'
       : `${b.level} %${b.charging ? ' ⚡ lädt' : b.full ? ' ✓ voll' : ''}`;
     $('infoRate').textContent = `${ds.state.reportRate} Hz`;
+    $('infoOut').textContent = ds.state.lastError
+      ? 'Fehler'
+      : `${ds.state.outputsSent} Pakete`;
+    $('infoOut').title = ds.state.lastError || 'Ausgabepakete an den Controller';
   }
 
   $('l2Fill').style.width = `${ds.state.triggers.l2 * 100}%`;
@@ -802,6 +807,7 @@ function liveStatus() {
     `  Gerät: ${s.name} (${hex(s.vendorId)}/${hex(s.productId)})`,
     `  Transportweg: ${s.connection}`,
     `  Empfangene Reports: ${s.reportsSeen} (${s.reportRate} pro Sekunde)`,
+    `  Gesendete Pakete: ${s.outputsSent}`,
     `  Letzter Report: ${s.lastReport ? `ID ${hex(s.lastReport.id)}, ${s.lastReport.length} Byte` : 'noch keiner'}`,
     `  Sticks roh: L ${s.sticks.rawLx}/${s.sticks.rawLy}  R ${s.sticks.rawRx}/${s.sticks.rawRy}`,
     `  Letzter Sendefehler: ${s.lastError || 'keiner'}`,

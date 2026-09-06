@@ -23,6 +23,7 @@ const OUT_USB = 0x02;
 const OUT_BT = 0x31;
 const IN_USB = 0x01;
 const IN_BT = 0x31;
+const BT_OUTPUT_TAGS = [0x10, 0x02];
 
 // valid_flag0
 const FLAG0_COMPATIBLE_VIBRATION = 0x01;
@@ -149,6 +150,7 @@ export class DualSense extends EventTarget {
       battery: { level: null, charging: false, full: false },
       reportRate: 0,
       reportsSeen: 0,
+      outputsSent: 0,
       lastReport: null,
       lastError: '',
       vendorId: 0,
@@ -494,31 +496,45 @@ export class DualSense extends EventTarget {
     const common = this._buildCommon();
     try {
       if (this.connection === 'usb') {
-        const data = new Uint8Array(47);
+        // Der Report ist 63 Byte lang: Reportnummer, 47 Byte Nutzlast und
+        // 15 reservierte Byte. Eine zu kurze Nutzlast verwirft der Controller.
+        const data = new Uint8Array(62);
         data.set(common, 0);
         await this.device.sendReport(OUT_USB, data);
       } else {
-        const data = new Uint8Array(77);
-        data[0] = (this.seq << 4) | 0x00;
-        data[1] = 0x02;
-        data.set(common, 2);
-        this.seq = (this.seq + 1) & 0x0f;
-
-        const check = new Uint8Array(75);
-        check[0] = 0xa2; // HID-Datenpräfix, gehört mit in die Prüfsumme
-        check[1] = OUT_BT;
-        check.set(data.subarray(0, 73), 2);
-        const crc = crc32(check);
-        data[73] = crc & 0xff;
-        data[74] = (crc >>> 8) & 0xff;
-        data[75] = (crc >>> 16) & 0xff;
-        data[76] = (crc >>> 24) & 0xff;
-        await this.device.sendReport(OUT_BT, data);
+        // Über welchen Wert das Tag-Byte laufen muss, geben die Quellen
+        // unterschiedlich an (Linux-Treiber: 0x10, diverse Bibliotheken:
+        // 0x02). Da es keine Rückmeldung vom Controller gibt, geht beides
+        // hinaus – das Paket mit dem falschen Tag wird schlicht ignoriert.
+        for (const tag of BT_OUTPUT_TAGS) {
+          await this.device.sendReport(OUT_BT, this._buildBluetoothReport(common, tag));
+        }
       }
+      this.state.outputsSent++;
       this.firstOutputSent = true;
     } catch (err) {
       this.state.lastError = err.message;
       this.emit('error', err);
     }
+  }
+
+  /** Baut ein Bluetooth-Paket samt Sequenznummer und CRC32. */
+  _buildBluetoothReport(common, tag) {
+    const data = new Uint8Array(77);
+    data[0] = (this.seq << 4) | 0x00;
+    data[1] = tag;
+    data.set(common, 2);
+    this.seq = (this.seq + 1) & 0x0f;
+
+    const check = new Uint8Array(75);
+    check[0] = 0xa2; // HID-Datenpräfix, gehört mit in die Prüfsumme
+    check[1] = OUT_BT;
+    check.set(data.subarray(0, 73), 2);
+    const crc = crc32(check);
+    data[73] = crc & 0xff;
+    data[74] = (crc >>> 8) & 0xff;
+    data[75] = (crc >>> 16) & 0xff;
+    data[76] = (crc >>> 24) & 0xff;
+    return data;
   }
 }

@@ -22,7 +22,8 @@ ds.output.triggers.right = { effect: 'weapon', values: { start: 90, end: 160, fo
 ds.output.triggers.left = { effect: 'resistance', values: { start: 3, force: 200 } };
 await ds.flush(true);
 let { id, data } = sent.pop();
-assert(id === 0x02 && data.length === 47, 'USB-Report 0x02 mit 47 Byte');
+assert(id === 0x02 && data.length === 62, 'USB-Report 0x02 mit 62 Byte Nutzlast (63 inkl. ID)');
+assert(data.subarray(47).every((b) => b === 0), 'die 15 reservierten Byte bleiben null');
 assert(data[2] === 7 && data[3] === 5, 'Rumble rechts/links an Position 2/3');
 assert(data[10] === 0x02 && data[11] === 90 && data[12] === 160 && data[13] === 255, 'R2-Effekt ab Byte 10');
 assert(data[21] === 0x01 && data[22] === 3 && data[23] === 200, 'L2-Effekt ab Byte 21');
@@ -51,15 +52,18 @@ assert((data[1] & 0x08) === 0, 'RELEASE_LEDS danach nicht mehr gesetzt');
 // --- Bluetooth-Ausgabe
 ds.connection = 'bluetooth';
 ds.seq = 0;
+sent.length = 0;
 await ds.flush(true);
+assert(sent.length === 2, 'über Bluetooth gehen beide Tag-Varianten hinaus');
+assert(sent[0].data[1] === 0x10 && sent[1].data[1] === 0x02, 'Tags 0x10 und 0x02');
+assert(sent[0].data[0] !== sent[1].data[0], 'jedes Paket bekommt eine eigene Sequenznummer');
 ({ id, data } = sent.pop());
 assert(id === 0x31 && data.length === 77, 'BT-Report 0x31 mit 77 Byte');
-assert(data[1] === 0x02, 'BT-Header 0x02');
 const check = new Uint8Array(75);
 check[0] = 0xa2; check[1] = 0x31; check.set(data.subarray(0, 73), 2);
 const crc = crc32(check);
 assert(data[73] === (crc & 0xff) && data[76] === ((crc >>> 24) & 0xff), 'CRC32 am Reportende');
-assert(ds.seq === 1, 'Sequenznummer erhöht sich');
+assert(ds.seq === 2, 'Sequenznummer erhöht sich je Paket');
 
 // --- Eingabe parsen (USB-Report 0x01)
 const buf = new Uint8Array(64);
@@ -87,12 +91,14 @@ ds._onInputReport({ reportId: 0x31, data: new DataView(bt.buffer) });
 assert(ds.state.sticks.rawLx === 200 && ds.state.buttons.triangle, 'BT-Report mit Versatz 1 gelesen');
 
 // --- Verbindungsart korrigiert sich anhand der eintreffenden Reports
+await new Promise((done) => setTimeout(done, 0)); // Sendungen des vorigen Schritts abwarten
 ds.connection = 'usb';
 sent.length = 0;
 const btIn = new Uint8Array(78);
 ds._onInputReport({ reportId: 0x31, data: new DataView(btIn.buffer) });
 assert(ds.connection === 'bluetooth', 'Report 0x31 stellt auf Bluetooth um');
-assert(sent.length === 1 && sent[0].id === 0x31, 'nach dem Wechsel wird sofort im richtigen Format gesendet');
+await new Promise((done) => setTimeout(done, 0)); // Senden läuft asynchron
+assert(sent.length === 2 && sent[0].id === 0x31, 'nach dem Wechsel wird sofort im richtigen Format gesendet');
 
 const usbIn = new Uint8Array(64);
 ds._onInputReport({ reportId: 0x01, data: new DataView(usbIn.buffer) });
